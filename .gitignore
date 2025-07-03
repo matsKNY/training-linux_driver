@@ -1,11 +1,23 @@
-*.o
-*~
-*.ko
-*.mod.c
-*.o.cmd
-*.ko.cmd
-*.mod.o.cmd
-.tmp_versions
-Module.symvers
-modules.order
+### Files related to development environments:
+**/*.sw*
+**/.ycm_extra_conf.py.*
+**/compile_commands.json
 
+### Build (side-)products:
+**/*.o
+**/*.o.cmd
+**/*.o.d
+**/*.ko
+**/*.ko.cmd
+**/*.mod
+**/*.mod.c
+**/*.mod.cmd
+**/*.mod.o.cmd
+**/.Module.symvers
+**/Module.symvers
+**/.Module.symvers.cmd
+**/Module.symvers.cmd
+**/.modules.order
+**/modules.order
+**/.modules.order.cmd
+**/modules.order.cmd
