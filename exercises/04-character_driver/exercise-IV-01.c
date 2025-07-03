@@ -23,6 +23,20 @@
 /*******/
 #include <linux/miscdevice.h>
 #include <linux/module.h>
+#include <linux/string.h>
+
+/******************************************************************************
+ * Definitions:
+ ******************************************************************************/
+/* Number of characters a string (null-terminating byte not included) should
+ * contain to represent the maximal reachable value for an `uint64_t`: */
+#define UINT64_STR_MAXCHAR 20
+
+/******************************************************************************
+ * Variables - file operations:
+ ******************************************************************************/
+/* Mutex associated with `static uint64_t counter`: */
+// TODO
 
 /******************************************************************************
  * Functions - file operations:
@@ -39,12 +53,83 @@ static ssize_t fops_read_increment(
     /***************************************************************************
      * Variables:
      **************************************************************************/
+    /* Internal absolute counter - incremented by one each time the `/dev` node
+     * associated with the module is read by an external source (e.g. one call
+     * to `cat` equals one "read"): */
+    static uint64_t counter = 0;
+
     /* Number of characters read - to be returned: */
     ssize_t nb_read = 0;
+
+    /* Kernel-side buffer to send the value of the counter to user-side: */
+    void*  k_buf_tmp = NULL;
+    size_t k_buf_tmp_size = 0;
 
     /***************************************************************************
      * Core:
      **************************************************************************/
+    /* If the received offset is greater than 0, it means that the "current"
+     * value of the counter was already read. Thus, we must return 0 to notify
+     * the reader that the "read session" ended: */
+    if (0 < *offset)
+    {
+        nb_read = 0;
+        *offset = 0;
+
+        goto l_fops_read_increment_ts;
+    }
+
+    /* Allocate a kernel-side buffer to send the value of the counter to
+     * userland: */
+    k_buf_tmp = kmalloc(UINT64_STR_MAXCHAR + 1, GFP_KERNEL);
+    /***/
+    if (NULL == k_buf_tmp)
+    {
+        nb_read = -ENOMEM;
+        goto l_fops_read_increment_ts;
+    }
+    /***/
+    memset(k_buf_tmp, 0, UINT64_STR_MAXCHAR + 1);
+
+    /* TODO - mutex lock */
+    /* Fill the kernel-side buffer with the value of the counter: */
+    if (0 >= snprintf(k_buf_tmp, UINT64_STR_MAXCHAR + 1, "%llu", counter))
+    {
+        nb_read = -EINVAL;
+        /* TODO - mutex unlock */
+
+        goto l_fops_read_increment_ts;
+    }
+
+    /* Check that the supplied userland buffer is large enough to hold the value
+     * of the counter: */
+    k_buf_tmp_size = strnlen(k_buf_tmp, UINT64_STR_MAXCHAR);
+    /***/
+    if (( k_buf_tmp_size + 1) > length)
+    {
+        nb_read = -ENOMEM;
+        /* TODO - mutex unlock */
+
+        goto l_fops_read_increment_ts;
+    }
+
+    /* Update the counter: */
+    counter++;
+    /* TODO - mutex unlock */
+
+    /* Send the kernel-side buffer to userland.
+     * The offset is set to the number of sent characters so as to notify the
+     * reader during its next call to `read` that the "read session" ended: */
+    nb_read = simple_read_from_buffer(
+        u_buf_out, length, offset, k_buf_tmp, k_buf_tmp_size
+    );
+
+    /***************************************************************************
+     * Termination stack:
+     **************************************************************************/
+l_fops_read_increment_ts:
+    /* Termination for `k_buf_tmp`: */
+    if (NULL != k_buf_tmp) {kfree(k_buf_tmp);}
 
     return nb_read;
 }
