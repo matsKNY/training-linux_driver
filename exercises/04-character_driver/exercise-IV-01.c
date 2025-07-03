@@ -80,8 +80,8 @@ static ssize_t fops_read_increment(
     }
 
     /* Allocate a kernel-side buffer to send the value of the counter to
-     * userland: */
-    k_buf_tmp = kmalloc(UINT64_STR_MAXCHAR + 1, GFP_KERNEL);
+     * userland (+2 = newline + null-terminating characters): */
+    k_buf_tmp = kmalloc(UINT64_STR_MAXCHAR + 2, GFP_KERNEL);
     /***/
     if (NULL == k_buf_tmp)
     {
@@ -89,11 +89,11 @@ static ssize_t fops_read_increment(
         goto l_fops_read_increment_ts;
     }
     /***/
-    memset(k_buf_tmp, 0, UINT64_STR_MAXCHAR + 1);
+    memset(k_buf_tmp, 0, UINT64_STR_MAXCHAR + 2);
 
     /* TODO - mutex lock */
     /* Fill the kernel-side buffer with the value of the counter: */
-    if (0 >= snprintf(k_buf_tmp, UINT64_STR_MAXCHAR + 1, "%llu", counter))
+    if (0 >= snprintf(k_buf_tmp, UINT64_STR_MAXCHAR + 2, "%llu\n", counter))
     {
         nb_read = -EINVAL;
         /* TODO - mutex unlock */
@@ -103,7 +103,7 @@ static ssize_t fops_read_increment(
 
     /* Check that the supplied userland buffer is large enough to hold the value
      * of the counter: */
-    k_buf_tmp_size = strnlen(k_buf_tmp, UINT64_STR_MAXCHAR);
+    k_buf_tmp_size = strnlen(k_buf_tmp, UINT64_STR_MAXCHAR + 1);
     /***/
     if (( k_buf_tmp_size + 1) > length)
     {
@@ -117,11 +117,12 @@ static ssize_t fops_read_increment(
     counter++;
     /* TODO - mutex unlock */
 
-    /* Send the kernel-side buffer to userland.
+    /* Send the kernel-side buffer to userland (null-terminating character
+     * included).
      * The offset is set to the number of sent characters so as to notify the
      * reader during its next call to `read` that the "read session" ended: */
     nb_read = simple_read_from_buffer(
-        u_buf_out, length, offset, k_buf_tmp, k_buf_tmp_size
+        u_buf_out, length, offset, k_buf_tmp, k_buf_tmp_size + 1
     );
 
     /***************************************************************************
@@ -146,7 +147,7 @@ static const struct file_operations fops = {
 /* Registration structure associated with the module: */
 static struct miscdevice mod_miscdevice = {
 	.minor = MISC_DYNAMIC_MINOR,
-	.name  = THIS_MODULE->name,
+	.name  = "counter",
 	.fops  = &fops,
 	.mode  = 0666,
 };
